@@ -10,9 +10,12 @@ MAX_NUM_TOKENS = 4096
 
 AVAILABLE_LLMS = [
     "claude-3-5-sonnet-20240620",
+    "claude-3-5-sonnet-20241022",
     "gpt-4o-mini-2024-07-18",
     "gpt-4o-2024-05-13",
     "gpt-4o-2024-08-06",
+    "o1-preview-2024-09-12",
+    "o1-mini-2024-09-12",
     "deepseek-coder-v2-0724",
     "llama3.1-405b",
     # Anthropic Claude models via Amazon Bedrock
@@ -140,7 +143,7 @@ def get_response_from_llm(
     if msg_history is None:
         msg_history = []
 
-    if "claude" in model:
+    if model.startswith("claude-"):
         new_msg_history = msg_history + [
             {
                 "role": "user",
@@ -187,6 +190,22 @@ def get_response_from_llm(
             max_tokens=MAX_NUM_TOKENS,
             n=1,
             stop=None,
+            seed=0,
+        )
+        content = response.choices[0].message.content
+        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+    elif model in ["o1-preview-2024-09-12", "o1-mini-2024-09-12"]:
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "user", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=1,
+            max_completion_tokens=MAX_NUM_TOKENS,
+            n=1,
+            #stop=None,
             seed=0,
         )
         content = response.choices[0].message.content
@@ -265,7 +284,7 @@ def extract_json_between_markers(llm_output):
 
 
 def create_client(model):
-    if model == "claude-3-5-sonnet-20240620":
+    if model.startswith("claude-"):
         print(f"Using Anthropic API with model {model}.")
         return anthropic.Anthropic(), model
     elif model.startswith("bedrock") and "claude" in model:
@@ -277,6 +296,9 @@ def create_client(model):
         print(f"Using Vertex AI with model {client_model}.")
         return anthropic.AnthropicVertex(), client_model
     elif 'gpt' in model:
+        print(f"Using OpenAI API with model {model}.")
+        return openai.OpenAI(), model
+    elif model in ["o1-preview-2024-09-12", "o1-mini-2024-09-12"]:
         print(f"Using OpenAI API with model {model}.")
         return openai.OpenAI(), model
     elif model == "deepseek-coder-v2-0724":
